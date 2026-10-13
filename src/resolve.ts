@@ -181,6 +181,7 @@ export function resolve(spec: ShapeSpec, options: ResolveOptions = {}): Resolved
             const A = add(P[i], scale(normalize(sub(P[prevKept(i)], P[i])), t));
             const B = add(P[i], scale(normalize(sub(P[nextKept(i)], P[i])), t));
             const notchPoint = sub(add(A, B), P[i]);
+            const shoulder = Math.max(0, corner.shoulderRadius || 0);
             switch (corner.shape) {
                 case 'round':
                     push(A, 0, prevSide);
@@ -188,19 +189,25 @@ export function resolve(spec: ShapeSpec, options: ResolveOptions = {}): Resolved
                     push(B, 0, i);
                     break;
                 case 'bevel':
-                    push(A, 0, prevSide);
-                    push(B, 0, i);
+                    push(A, shoulder, prevSide);
+                    push(B, shoulder, i);
                     break;
                 case 'notch':
-                    push(A, 0, prevSide);
+                    push(A, shoulder, prevSide);
                     push(notchPoint, 0, i);
-                    push(B, 0, i);
+                    push(B, shoulder, i);
                     break;
-                case 'scoop':
-                    push(A, 0, prevSide);
-                    push(notchPoint, radii[i], i);
-                    push(B, 0, i);
+                case 'scoop': {
+                    // The circle a fillet of this radius at the notch point would follow: it
+                    // touches the sides at A and B. Its middle gives the direction.
+                    const u = normalize(sub(A, notchPoint));
+                    const v = normalize(sub(B, notchPoint));
+                    const center = add(notchPoint, scale(normalize(add(u, v)), radii[i] / Math.sin(cornerAngle[i] / 2)));
+                    const through = add(center, scale(normalize(sub(notchPoint, center)), radii[i]));
+                    push(A, shoulder, prevSide, { center, r: radii[i], through });
+                    push(B, shoulder, i);
                     break;
+                }
             }
         }
 
@@ -367,6 +374,15 @@ function roundNodes(nodes: Node[], clamps: Clamp[]): Contour {
     return { segments };
 }
 
+// Position of q on the arc from `from` to `to` that passes through `through`: 0 at `from`, 1 at
+// `to`, above 1 (up to a full turn) outside the arc.
+function arcFraction(arc: { center: Point; through: Point }, from: Point, to: Point, q: Point): number {
+    const anticlockwise = arcDirection(arc.center, from, to, arc.through);
+    const start = angleOf(arc.center, from);
+    const total = arcSweep(start, angleOf(arc.center, to), anticlockwise);
+    return total === 0 ? 0 : arcSweep(start, angleOf(arc.center, q), anticlockwise) / total;
+}
+
 // A shoulder: the node where a straight base segment meets a circular feature arc.
 interface Shoulder {
     // True when the arc leaves this node (the straight segment comes in).
@@ -380,7 +396,10 @@ interface Shoulder {
     node: Point;
     // Unit direction along the straight segment, toward the node.
     dir: Point;
-    arc: { center: Point; r: number };
+    arc: { center: Point; r: number; through: Point };
+    // Whether a point of the arc circle lies on the part of the arc between the node and the
+    // through point, which a fillet may take (the through point keeps the arc's direction).
+    canTake(q: Point): boolean;
 }
 
 function shoulderAt(nodes: Node[], k: number): Shoulder | null {
@@ -392,7 +411,9 @@ function shoulderAt(nodes: Node[], k: number): Shoulder | null {
     const arc = arcOut ? node.arc! : before.arc!;
     // `lineEnd` is the far end of the straight segment that meets the arc at this node.
     const lineEnd = arcOut ? before.p : after.p;
-    if (arcOut ? before.arc : after.arc) return null;
+    // The straight segment comes in (arcOut) or leaves this node. Leaving, it is straight
+    // already: an arc leaving this node too would make it an arc-arc node.
+    if (arcOut && before.arc) return null;
 
     const S = node.p;
     const e = normalize(sub(S, lineEnd));
@@ -415,23 +436,27 @@ function shoulderAt(nodes: Node[], k: number): Shoulder | null {
         const solved = solve(rho);
         return solved ? Math.min(available, Math.max(0, -solved.os)) : available;
     };
-    return { arcOut, solve, tangent, node: S, dir: e, arc };
+    const other = arcOut ? after.p : before.p;
+    const limit = arcFraction(arc, S, other, arc.through);
+    const canTake = (q: Point) => arcFraction(arc, S, other, q) < limit;
+    return { arcOut, solve, tangent, node: S, dir: e, arc, canTake };
 }
 
 // Fillet between a straight base segment and a circular feature arc at a shoulder, taking at
 // most `room` of the straight segment.
 function lineArcFillet(shoulder: Shoulder, radius: number, room: number, k: number, clamps: Clamp[]): Fillet | null {
-    const { solve, arc } = shoulder;
+    const { solve, arc, canTake } = shoulder;
+    const onArcOf = (center: Point) => add(arc.center, scale(normalize(sub(center, arc.center)), arc.r));
+    const fits = (s: { os: number; center: Point } | null): s is { os: number; center: Point } => !!s && -s.os <= room && canTake(onArcOf(s.center));
     let rho = radius;
     let solved = solve(rho);
-    if (!solved || -solved.os > room) {
-        // Shrink until the tangent point fits.
+    if (!fits(solved)) {
+        // Shrink until the tangent points fit on both the line and the arc.
         let lo = 0;
         let hi = rho;
         for (let i = 0; i < 40; i++) {
             const mid = (lo + hi) / 2;
-            const s = solve(mid);
-            if (s && -s.os <= room) lo = mid;
+            if (fits(solve(mid))) lo = mid;
             else hi = mid;
         }
         clamps.push({ kind: 'vertex-radius', index: k, factor: rho > 0 ? lo / rho : 0 });
@@ -442,7 +467,7 @@ function lineArcFillet(shoulder: Shoulder, radius: number, room: number, k: numb
     const { node: S, dir, arcOut } = shoulder;
     const center = solved.center;
     const onLine = add(S, scale(dir, solved.os));
-    const onArc = add(arc.center, scale(normalize(sub(center, arc.center)), arc.r));
+    const onArc = onArcOf(center);
     const through = add(center, scale(normalize(sub(S, center)), rho));
     const filletArc = { center, r: rho, through };
     return arcOut
@@ -462,8 +487,9 @@ function arcArcFillet(before: Node, node: Node, end: Point, k: number, clamps: C
     const base = normalize(sub(end, before.p));
     const rel = sub(before.p, P);
     const toBase = sub(rel, scale(base, dot(rel, base)));
-    const sweepA = arcSweep(angleOf(a.center, before.p), angleOf(a.center, P), arcDirection(a.center, before.p, P, a.through));
-    const sweepB = arcSweep(angleOf(b.center, P), angleOf(b.center, end), arcDirection(b.center, P, end, b.through));
+    // A fillet may take each arc from the tip up to the arc's through point.
+    const limitA = arcFraction(a, P, before.p, a.through);
+    const limitB = arcFraction(b, P, end, b.through);
     const solve = (rho: number) => {
         const ra = a.r + rho;
         const rb = b.r + rho;
@@ -480,11 +506,7 @@ function arcArcFillet(before: Node, node: Node, end: Point, k: number, clamps: C
         const center = dot(sub(f0, P), toBase) > dot(sub(f1, P), toBase) ? f0 : f1;
         const onA = add(a.center, scale(normalize(sub(center, a.center)), a.r));
         const onB = add(b.center, scale(normalize(sub(center, b.center)), b.r));
-        // Fraction of each arc, from its untrimmed end, left after the fillet.
-        const leftA = arcSweep(angleOf(a.center, before.p), angleOf(a.center, onA), sweepA < 0) / sweepA;
-        const leftB = arcSweep(angleOf(b.center, onB), angleOf(b.center, end), sweepB < 0) / sweepB;
-        // The direction points sit 2% from the untrimmed ends.
-        if (!(leftA > 0.05 && leftA <= 1 + 1e-9 && leftB > 0.05 && leftB <= 1 + 1e-9)) return null;
+        if (!(arcFraction(a, P, before.p, onA) < limitA && arcFraction(b, P, end, onB) < limitB)) return null;
         return { center, onA, onB };
     };
     let rho = node.radius;

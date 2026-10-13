@@ -15,6 +15,8 @@ export interface CornerSpec {
     // Displacement of the corner point in px. Positive values point into the shape.
     shiftX: number;
     shiftY: number;
+    // Rounds the two points where a bevel, scoop or notch meets the sides. Ignored for round.
+    shoulderRadius?: number;
 }
 
 export interface EdgeSpec {

@@ -99,6 +99,32 @@ describe('corners', () => {
         expect(arcs.every((a) => a.type === 'arc' && a.anticlockwise)).toBe(true);
     });
 
+    test('shoulder radius rounds where bevel, notch and scoop meet the sides', () => {
+        for (const cornerShape of ['bevel', 'notch', 'scoop'] as const) {
+            const r = resolve(shape(100, 60, { radius: 20, shape: cornerShape, shoulderRadius: 4 }));
+            expectWellFormed(r.outline);
+            expectSmoothAroundArcs(r.outline);
+            expect(r.clamps.length).toBe(0);
+        }
+        const round = resolve(shape(100, 60, { radius: 20, shoulderRadius: 4 }));
+        expect(round.outline.segments.length).toBe(8);
+    });
+
+    test('a full scoop with shoulders is a soft star, and large shoulders make a circle', () => {
+        // Neighboring scoops meet at the middle of each side; the shoulder rounds that tip.
+        const star = resolve(shape(160, 160, { radius: 80, shape: 'scoop', shoulderRadius: 12 }));
+        expectWellFormed(star.outline);
+        expectSmoothAroundArcs(star.outline);
+        expect(star.outline.segments.length).toBe(8);
+        expect(star.clamps.length).toBe(0);
+        // The tip fillets may take each scoop up to its middle, no further.
+        const round = resolve(shape(160, 160, { radius: 80, shape: 'scoop', shoulderRadius: 400 }));
+        expectWellFormed(round.outline);
+        expectSmoothAroundArcs(round.outline);
+        expect(round.outline.segments.every((seg) => seg.type === 'arc' && !seg.anticlockwise)).toBe(true);
+        expect(round.clamps.every((c) => c.kind === 'vertex-radius' && c.factor > 0 && c.factor < 1)).toBe(true);
+    });
+
     test('mixed corners', () => {
         const r = resolve(
             shape(100, 40, [
@@ -260,8 +286,9 @@ describe('edge features', () => {
     });
 
     test('cusp tip radius shrinks to fit its arcs', () => {
-        // A shallow cusp is nearly flat at the tip and takes large radii; this one does not fit.
-        const feature = { kind: 'cusp' as const, depth: -6, span: 1000, tipRadius: 5000 };
+        // A shallow cusp is nearly flat at the tip and takes very large radii; this one is too
+        // large even so.
+        const feature = { kind: 'cusp' as const, depth: -6, span: 1000, tipRadius: 50000 };
         const r = resolve(shape(220, 220, { radius: 66 }, [feature, feature, feature, feature]));
         expectWellFormed(r.outline);
         expectSmoothAroundArcs(r.outline);
