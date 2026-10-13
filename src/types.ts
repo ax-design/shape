@@ -71,7 +71,10 @@ export interface ArcSegment {
     y0: number;
     x1: number;
     y1: number;
+    // Side at the start and at the end of the arc. Corner fillets span two sides and blend
+    // their border widths.
     side: number;
+    sideEnd: number;
 }
 
 export type Segment = LineSegment | ArcSegment;

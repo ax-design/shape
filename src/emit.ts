@@ -20,7 +20,7 @@ export function traceContour(sink: PathSink, contour: Contour): void {
     sink.closePath();
 }
 
-function num(x: number, precision: number): string {
+export function formatNumber(x: number, precision: number): string {
     const fixed = x.toFixed(precision);
     // Trim trailing zeros and avoid "-0".
     const trimmed = fixed.indexOf('.') >= 0 ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed;
@@ -30,7 +30,7 @@ function num(x: number, precision: number): string {
 export function toSvgPath(contour: Contour, precision = 3): string {
     const segments = contour.segments;
     if (segments.length === 0) return '';
-    const n = (x: number) => num(x, precision);
+    const n = (x: number) => formatNumber(x, precision);
     const parts = [`M${n(segments[0].x0)} ${n(segments[0].y0)}`];
     for (const s of segments) {
         if (s.type === 'line') {

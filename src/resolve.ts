@@ -294,7 +294,7 @@ function roundNodes(nodes: Node[], clamps: Clamp[]): Contour {
     });
 
     const segments: Segment[] = [];
-    const pushArc = (center: Point, r: number, p0: Point, p1: Point, through: Point, side: number) => {
+    const pushArc = (center: Point, r: number, p0: Point, p1: Point, through: Point, side: number, sideEnd: number) => {
         if (distance(p0, p1) < EPSILON) return;
         segments.push({
             type: 'arc',
@@ -309,16 +309,17 @@ function roundNodes(nodes: Node[], clamps: Clamp[]): Contour {
             x1: p1.x,
             y1: p1.y,
             side,
+            sideEnd,
         });
     };
     for (let k = 0; k < count; k++) {
         const node = nodes[k];
         const fillet = fillets[k];
-        if (fillet.arc) pushArc(fillet.arc.center, fillet.arc.r, fillet.inPoint, fillet.outPoint, fillet.arc.through, node.side);
+        if (fillet.arc) pushArc(fillet.arc.center, fillet.arc.r, fillet.inPoint, fillet.outPoint, fillet.arc.through, nodes[(k + count - 1) % count].side, node.side);
         const from = fillet.outPoint;
         const to = fillets[(k + 1) % count].inPoint;
         if (node.arc) {
-            pushArc(node.arc.center, node.arc.r, from, to, node.arc.through, node.side);
+            pushArc(node.arc.center, node.arc.r, from, to, node.arc.through, node.side, node.side);
         } else if (distance(from, to) > EPSILON) {
             segments.push({ type: 'line', x0: from.x, y0: from.y, x1: to.x, y1: to.y, side: node.side });
         }

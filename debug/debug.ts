@@ -1,6 +1,7 @@
 // Visual check: canvas fill (red) under an SVG outline (blue) for the same resolved shape,
 // with sharp vertices (gray dots) and clamps listed under each cell.
-import { resolve, toSvgPath, traceContour } from '../src/index.js';
+import { borderInner, resolve, tiltHomography, toSvgPath, traceContour, traceInner } from '../src/index.js';
+import type { TiltParams } from '../src/index.js';
 import { shape } from '../src/test-utils.js';
 import type { ShapeSpec } from '../src/types.js';
 
@@ -65,8 +66,43 @@ for (const [name, spec] of PRESETS) {
         ctx.fill();
     }
 
+    // Border ring, 3px, even-odd.
+    const ring = borderInner(resolved.outline, { widths: [3, 3, 3, 3], tolerance: 0.1 / dpr });
+    ctx.beginPath();
+    traceContour(ctx, resolved.outline);
+    traceInner(ctx, ring.inner);
+    ctx.fillStyle = 'rgba(20, 20, 20, 0.85)';
+    ctx.fill('evenodd');
+
     const svg = cell.querySelector('svg')!;
     svg.innerHTML = `<path transform="translate(${OX} ${OY})" d="${toSvgPath(resolved.outline)}" fill="none" stroke="#1450dc" stroke-width="1"/>`;
     cell.querySelector('.clamps')!.textContent = resolved.clamps.map((c) => `${c.kind}[${c.index}] x${c.factor.toFixed(2)}`).join(', ');
+}
+// Tilted row: the stage gets a real CSS transform; the inner edge is pre-distorted so the
+// ring keeps 3px on screen. The uncompensated version is drawn next to it.
+const TILT: Omit<TiltParams, 'width' | 'height'> = { perspective: 120, rotateX: 18, rotateY: -32, translateZ: 0 };
+for (const compensate of [true, false]) {
+    for (const [name, spec] of PRESETS.filter(([n]) => ['round 12', 'bevel 14', 'bun', 'heart'].includes(n))) {
+        const resolved = resolve(spec, { borderWidths: [3, 3, 3, 3] });
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.innerHTML = `<div class="name">${name} tilt ${compensate ? 'compensated' : 'raw'}</div><div class="stage"><canvas></canvas></div><div class="clamps"></div>`;
+        grid.appendChild(cell);
+        const canvas = cell.querySelector('canvas')!;
+        canvas.width = 200 * dpr;
+        canvas.height = 140 * dpr;
+        // Transform the box that holds the shape, around the shape center.
+        canvas.style.transformOrigin = `${OX + spec.width / 2}px ${OY + spec.height / 2}px`;
+        canvas.style.transform = `perspective(${TILT.perspective}px) rotateX(${TILT.rotateX}deg) rotateY(${TILT.rotateY}deg)`;
+        const h = tiltHomography({ width: spec.width, height: spec.height, ...TILT });
+        const ring = borderInner(resolved.outline, { widths: [3, 3, 3, 3], transform: compensate ? h : undefined, center: { x: spec.width / 2, y: spec.height / 2 } });
+        const ctx = canvas.getContext('2d')!;
+        ctx.setTransform(dpr, 0, 0, dpr, OX * dpr, OY * dpr);
+        ctx.beginPath();
+        traceContour(ctx, resolved.outline);
+        traceInner(ctx, ring.inner);
+        ctx.fillStyle = 'rgba(20, 20, 20, 0.85)';
+        ctx.fill('evenodd');
+    }
 }
 (window as any).__ready = true;
