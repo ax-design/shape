@@ -1,5 +1,5 @@
 export type CornerShape = 'round' | 'bevel' | 'scoop' | 'notch';
-export type EdgeKind = 'none' | 'arc' | 'rect' | 'triangle' | 'trapezoid';
+export type EdgeKind = 'flat' | 'arc' | 'rect' | 'triangle' | 'trapezoid';
 
 // Corner order: top-left, top-right, bottom-right, bottom-left.
 // Side order: top, right, bottom, left. Side i runs from corner i to corner (i + 1) % 4.

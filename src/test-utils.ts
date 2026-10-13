@@ -9,7 +9,7 @@ export const corner = (over: Partial<CornerSpec> = {}): CornerSpec => ({
 });
 
 export const edge = (over: Partial<EdgeSpec> = {}): EdgeSpec => ({
-    kind: 'none',
+    kind: 'flat',
     depth: 0,
     span: 0,
     at: 0.5,

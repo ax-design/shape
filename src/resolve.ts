@@ -110,7 +110,7 @@ export function resolve(spec: ShapeSpec, options: ResolveOptions = {}): Resolved
 
     // B3: feature span and position inside the straight part of each edge.
     const features = spec.edges.map((edge, i) => {
-        const active = edge.kind !== 'none' && edge.depth !== 0 && edge.span > 0 && !collapsed(i);
+        const active = edge.kind !== 'flat' && edge.depth !== 0 && edge.span > 0 && !collapsed(i);
         if (!active) return null;
         const start = tangentAtSide(i);
         const end = edgeLength[i] - tangentAtSide((i + 1) % 4);
