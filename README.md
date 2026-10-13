@@ -28,7 +28,7 @@ import { resolve, toSvgPath, traceContour } from '@ax-design/shape';
 
 ## Usage
 
-A shape is a rectangle with decorations: rounded, beveled, scooped or notched corners, corners moved into the shape, and one feature on each side (an arc, a rectangle, a triangle or a trapezoid, going in or out).
+A shape is a rectangle with decorations: rounded, beveled, scooped or notched corners, corners moved into the shape, and one feature on each side (an arc, a rectangle, a triangle, a trapezoid or a cusp, going in or out).
 You describe it with numbers and `resolve` turns it into lines and arcs.
 Here's an example:
 
@@ -55,7 +55,16 @@ traceContour(ctx, shape.outline);
 ctx.fill();
 ```
 
-Values that do not fit are scaled down, the same way CSS does with `border-radius`. `shape.clamps` tells you what was scaled and by how much. A side feature narrower than half a pixel is left out, so animating a span down to zero ends on a flat side.
+A `cusp` is two arcs that leave the side smoothly at both ends of the span and meet in a point: inward it pinches the side (the Material bun and clover), outward it makes a pointed arch. `tipRadius` rounds the point.
+
+A corner's `shoulderRadius` rounds the two points where a bevel, scoop or notch meets the sides. Scoops of 50% with a shoulder radius make a soft star:
+
+```javascript
+const soft = { radius: 80, shape: 'scoop', shiftX: 0, shiftY: 0, shoulderRadius: 8 };
+resolve({ width: 160, height: 160, corners: [soft, soft, soft, soft], edges: [flat, flat, flat, flat] });
+```
+
+Values that do not fit are scaled down, the same way CSS does with `border-radius`. A corner and a side feature next to it share the straight part of the side and shrink together. `shape.clamps` tells you what was scaled and by how much. A side feature narrower than half a pixel is left out, so animating a span down to zero ends on a flat side.
 
 ### Borders
 
@@ -83,3 +92,10 @@ const { inner } = borderInner(shape.outline, { widths: [2, 2, 2, 2], transform }
 ```
 
 Shape has no DOM dependency, so you can also use it on the server.
+
+## Changes in 0.2
+
+* The `cusp` side feature.
+* `shoulderRadius` for corners.
+* A corner next to a side feature with a shoulder no longer overlaps it. The outline used to run back along the side there, and the inner edge of the border shot out as a spike (the 4-sided cookie and the 4-leaf clover of the Material shapes).
+* A shoulder between a side and an arc that is followed by another arc is rounded too; it used to stay sharp.

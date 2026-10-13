@@ -1,6 +1,6 @@
 {
   "name": "@ax-design/shape",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Rectangle-plus-decoration shapes of Axiom Design System, drawn the same way on SVG and Canvas.",
   "keywords": [
     "shape",
