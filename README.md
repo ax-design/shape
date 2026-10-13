@@ -55,7 +55,7 @@ traceContour(ctx, shape.outline);
 ctx.fill();
 ```
 
-Values that do not fit are scaled down, the same way CSS does with `border-radius`. `shape.clamps` tells you what was scaled and by how much.
+Values that do not fit are scaled down, the same way CSS does with `border-radius`. `shape.clamps` tells you what was scaled and by how much. A side feature narrower than half a pixel is left out, so animating a span down to zero ends on a flat side.
 
 ### Borders
 

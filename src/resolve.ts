@@ -1,6 +1,9 @@
 import { EPSILON, add, arcDirection, angleOf, arcSweep, cross, distance, dot, normalize, scale, sub } from './math.js';
 import type { Clamp, Contour, Point, Quad, ResolvedShape, Segment, ShapeSpec, Vertex } from './types.js';
 
+// Edge features with a narrower base (in px) are drawn as a flat edge.
+const MIN_FEATURE_SPAN = 0.5;
+
 export interface ResolveOptions {
     // Border width per side, used to keep inward features from crossing (rule B4).
     borderWidths?: Quad<number>;
@@ -120,7 +123,9 @@ export function resolve(spec: ShapeSpec, options: ResolveOptions = {}): Resolved
             clamps.push({ kind: 'edge-span', index: i, factor: available / span });
             span = available;
         }
-        if (span <= EPSILON) return null;
+        // Narrower than half a pixel: nothing to see, but the tip would still move the bounds
+        // (a needle as deep as the feature). Mid-animation spans pass through here.
+        if (span < MIN_FEATURE_SPAN) return null;
         const half = span / 2;
         const center = Math.min(Math.max(edge.at * edgeLength[i], start + half), end - half);
         let depth = edge.depth;

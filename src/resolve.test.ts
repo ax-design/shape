@@ -165,6 +165,16 @@ describe('edge features', () => {
         expect(r.bounds.top).toBeCloseTo(-10, 9);
     });
 
+    test('a feature narrower than half a pixel is a flat edge', () => {
+        for (const kind of ['triangle', 'rect', 'trapezoid', 'arc'] as const) {
+            const thin = resolve(shape(100, 40, {}, [{ kind, depth: 30, span: 0.0001 }]));
+            expect(thin.bounds.top).toBe(0);
+            expect(thin.outline.segments.length).toBe(4);
+        }
+        const visible = resolve(shape(100, 40, {}, [{ kind: 'triangle', depth: 30, span: 0.5 }]));
+        expect(visible.bounds.top).toBeCloseTo(-30, 9);
+    });
+
     test('trapezoid', () => {
         const r = resolve(shape(100, 40, {}, [{ kind: 'trapezoid', depth: 10, span: 40, ratio: 0.5 }]));
         expect(signedArea(r.outline)).toBeCloseTo(4000 + ((40 + 20) / 2) * 10, 6);
