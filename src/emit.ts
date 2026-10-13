@@ -20,11 +20,14 @@ export function traceContour(sink: PathSink, contour: Contour): void {
     sink.closePath();
 }
 
+const POWERS = [1, 10, 100, 1000, 10000, 100000, 1000000];
+
+// Rounds to `precision` decimals and prints the shortest form. Rounding first also removes
+// exponent notation for tiny values and the "-0" case.
 export function formatNumber(x: number, precision: number): string {
-    const fixed = x.toFixed(precision);
-    // Trim trailing zeros and avoid "-0".
-    const trimmed = fixed.indexOf('.') >= 0 ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed;
-    return trimmed === '-0' ? '0' : trimmed;
+    const p = POWERS[precision] || Math.pow(10, precision);
+    const r = Math.round(x * p) / p;
+    return r === 0 ? '0' : String(r);
 }
 
 export function toSvgPath(contour: Contour, precision = 3): string {
