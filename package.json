@@ -1,24 +1,27 @@
 {
   "name": "@ax-design/shape",
-  "version": "0.0.0",
-  "description": "Rectangle-plus-decoration shape geometry for the Axiom Design System, with SVG and Canvas output.",
+  "version": "0.1.0",
+  "description": "Rectangle-plus-decoration shapes of Axiom Design System, drawn the same way on SVG and Canvas.",
+  "keywords": [
+    "shape",
+    "svg",
+    "canvas",
+    "border",
+    "corner-shape"
+  ],
+  "homepage": "https://github.com/ax-design/shape#readme",
+  "bugs": {
+    "url": "https://github.com/ax-design/shape/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ax-design/shape.git"
+  },
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": [
-    "dist",
-    "src"
-  ],
-  "sideEffects": false,
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "bun test"
-  },
-  "devDependencies": {
-    "typescript": "^5.6.0",
-    "@types/bun": "latest"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -26,5 +29,22 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/test-utils.ts",
+    "!dist/test-utils.*"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "bun test",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/bun": "latest"
   }
 }
