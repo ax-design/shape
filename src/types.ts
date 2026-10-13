@@ -1,5 +1,7 @@
 export type CornerShape = 'round' | 'bevel' | 'scoop' | 'notch';
-export type EdgeKind = 'flat' | 'arc' | 'rect' | 'triangle' | 'trapezoid';
+// cusp: two arcs, each tangent to the edge at one end of the base, meeting at the tip (a
+// pinch inward, a pointed arch outward).
+export type EdgeKind = 'flat' | 'arc' | 'rect' | 'triangle' | 'trapezoid' | 'cusp';
 
 // Corner order: top-left, top-right, bottom-right, bottom-left.
 // Side order: top, right, bottom, left. Side i runs from corner i to corner (i + 1) % 4.

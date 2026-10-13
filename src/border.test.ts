@@ -128,6 +128,9 @@ describe('border without tilt', () => {
         ['bun', shape(140, 80, { radius: 20 }, [{}, { kind: 'arc', depth: -8, span: 36 }, {}, { kind: 'arc', depth: -8, span: 36 }])],
         ['tab', shape(140, 80, { radius: 8 }, [{ kind: 'rect', depth: 12, span: 50, tipRadius: 6, shoulderRadius: 4 }])],
         ['triangle notch', shape(140, 80, { radius: 8 }, [{ kind: 'triangle', depth: -16, span: 40, tipRadius: 3, shoulderRadius: 3 }])],
+        ['cusp bun', shape(100, 104, { radius: 26 }, [{}, { kind: 'cusp', depth: -14, span: 1000, tipRadius: 3 }, {}, { kind: 'cusp', depth: -14, span: 1000, tipRadius: 3 }])],
+        ['cusp cookie', shape(100, 100, { radius: 30 }, [0, 1, 2, 3].map(() => ({ kind: 'cusp' as const, depth: -3, span: 1000, tipRadius: 9 })))],
+        ['pointed arch', shape(140, 80, { radius: 8 }, [{ kind: 'cusp', depth: 16, span: 60, tipRadius: 4 }])],
         ['heart', shape(140, 80, [{ radius: 30 }, { radius: 30 }, { shiftX: 70, radius: 4 }, { shiftX: 70, radius: 4 }], [{ kind: 'triangle', depth: -14, span: 30, tipRadius: 4, shoulderRadius: 10 }])],
     ];
     for (const [name, spec] of presets) {

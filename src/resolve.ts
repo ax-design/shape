@@ -129,8 +129,9 @@ export function resolve(spec: ShapeSpec, options: ResolveOptions = {}): Resolved
         const half = span / 2;
         const center = Math.min(Math.max(edge.at * edgeLength[i], start + half), end - half);
         let depth = edge.depth;
-        if (edge.kind === 'arc' && Math.abs(depth) > half) {
-            // A circular segment deeper than a semicircle is not supported.
+        if ((edge.kind === 'arc' || edge.kind === 'cusp') && Math.abs(depth) > half) {
+            // A circular segment deeper than a semicircle is not supported. For a cusp each arc
+            // would turn back over the edge.
             clamps.push({ kind: 'edge-depth', index: i, factor: half / Math.abs(depth) });
             depth = Math.sign(depth) * half;
         }
@@ -219,6 +220,21 @@ export function resolve(spec: ShapeSpec, options: ResolveOptions = {}): Resolved
             const center = add(apex, scale(n, d > 0 ? -r : r));
             push(s0, Math.max(0, edge.shoulderRadius), i, { center, r, through: apex });
             push(s1, Math.max(0, edge.shoulderRadius), i);
+        } else if (edge.kind === 'cusp') {
+            // Each arc touches the edge at its end of the base, so it needs no shoulder.
+            const s0 = along(f.center - half, 0);
+            const s1 = along(f.center + half, 0);
+            const d = f.depth;
+            const r = (half * half + d * d) / (2 * Math.abs(d));
+            const tip = along(f.center, d);
+            const inward = scale(n, d > 0 ? r : -r);
+            const c0 = add(s0, inward);
+            const c1 = add(s1, inward);
+            // A point near the untrimmed end of each arc gives its direction.
+            const near = (c: Point, from: Point, to: Point) => add(c, scale(normalize(add(scale(sub(from, c), 0.98), scale(sub(to, c), 0.02))), r));
+            push(s0, 0, i, { center: c0, r, through: near(c0, s0, tip) });
+            push(tip, Math.max(0, edge.tipRadius), i, { center: c1, r, through: near(c1, s1, tip) });
+            push(s1, 0, i);
         } else {
             const ratio = edge.kind === 'rect' ? 1 : edge.kind === 'triangle' ? 0 : Math.max(0, Math.min(1, edge.ratio));
             const top = f.span * ratio;
@@ -297,6 +313,7 @@ function roundNodes(nodes: Node[], clamps: Clamp[]): Contour {
     const fillets: Fillet[] = nodes.map((node, k) => {
         const plain = { inPoint: node.p, outPoint: node.p };
         if (node.radius <= 0) return plain;
+        if (node.arc && prev(k).arc) return arcArcFillet(prev(k), node, next(k).p, k, clamps) || plain;
         if (node.arc || prev(k).arc) {
             const shoulder = shoulders[k];
             return (shoulder && lineArcFillet(shoulder, node.radius, tangent[k] * factor[k], k, clamps)) || plain;
@@ -431,6 +448,62 @@ function lineArcFillet(shoulder: Shoulder, radius: number, room: number, k: numb
     return arcOut
         ? { inPoint: onLine, outPoint: onArc, arc: filletArc }
         : { inPoint: onArc, outPoint: onLine, arc: filletArc };
+}
+
+// Fillet at the tip between the two arcs of a cusp. The fillet lies outside both arc circles
+// (in the shape for an outward tip, in the notch for an inward one), on the side of the tip
+// toward the base. Shrinks until both touching points stay on their arcs.
+function arcArcFillet(before: Node, node: Node, end: Point, k: number, clamps: Clamp[]): Fillet | null {
+    const a = before.arc!;
+    const b = node.arc!;
+    const P = node.p;
+    // From the tip toward the base line. Not the arc centers: at the deepest cusp the tip is
+    // their midpoint.
+    const base = normalize(sub(end, before.p));
+    const rel = sub(before.p, P);
+    const toBase = sub(rel, scale(base, dot(rel, base)));
+    const sweepA = arcSweep(angleOf(a.center, before.p), angleOf(a.center, P), arcDirection(a.center, before.p, P, a.through));
+    const sweepB = arcSweep(angleOf(b.center, P), angleOf(b.center, end), arcDirection(b.center, P, end, b.through));
+    const solve = (rho: number) => {
+        const ra = a.r + rho;
+        const rb = b.r + rho;
+        const dc = distance(a.center, b.center);
+        if (dc < EPSILON || dc > ra + rb) return null;
+        const along = (ra * ra - rb * rb + dc * dc) / (2 * dc);
+        const h2 = ra * ra - along * along;
+        if (h2 < 0) return null;
+        const u = normalize(sub(b.center, a.center));
+        const mid = add(a.center, scale(u, along));
+        const off = scale({ x: -u.y, y: u.x }, Math.sqrt(h2));
+        const f0 = add(mid, off);
+        const f1 = sub(mid, off);
+        const center = dot(sub(f0, P), toBase) > dot(sub(f1, P), toBase) ? f0 : f1;
+        const onA = add(a.center, scale(normalize(sub(center, a.center)), a.r));
+        const onB = add(b.center, scale(normalize(sub(center, b.center)), b.r));
+        // Fraction of each arc, from its untrimmed end, left after the fillet.
+        const leftA = arcSweep(angleOf(a.center, before.p), angleOf(a.center, onA), sweepA < 0) / sweepA;
+        const leftB = arcSweep(angleOf(b.center, onB), angleOf(b.center, end), sweepB < 0) / sweepB;
+        // The direction points sit 2% from the untrimmed ends.
+        if (!(leftA > 0.05 && leftA <= 1 + 1e-9 && leftB > 0.05 && leftB <= 1 + 1e-9)) return null;
+        return { center, onA, onB };
+    };
+    let rho = node.radius;
+    let solved = solve(rho);
+    if (!solved) {
+        let lo = 0;
+        let hi = rho;
+        for (let i = 0; i < 40; i++) {
+            const mid = (lo + hi) / 2;
+            if (solve(mid)) lo = mid;
+            else hi = mid;
+        }
+        clamps.push({ kind: 'vertex-radius', index: k, factor: rho > 0 ? lo / rho : 0 });
+        rho = lo;
+        solved = solve(rho);
+        if (!solved || rho < EPSILON) return null;
+    }
+    const through = add(solved.center, scale(normalize(sub(P, solved.center)), rho));
+    return { inPoint: solved.onA, outPoint: solved.onB, arc: { center: solved.center, r: rho, through } };
 }
 
 function boundsOf(contour: Contour) {

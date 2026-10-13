@@ -242,6 +242,49 @@ describe('edge features', () => {
         }
     });
 
+    test('cusp: two arcs tangent to the side at the span ends, rounded tip', () => {
+        for (const depth of [-14, -8, 8, 14]) {
+            for (const span of [40, 1000]) {
+                const feature = { kind: 'cusp' as const, depth, span, tipRadius: 3 };
+                const r = resolve(shape(100, 104, { radius: 26 }, [{}, feature, {}, feature]));
+                expectWellFormed(r.outline);
+                // Tangent continuous everywhere: at the span ends, at the corners and at the tip.
+                expectSmoothAroundArcs(r.outline);
+                const side = r.outline.segments.filter((seg) => seg.side === 1 || (seg.type === 'arc' && seg.sideEnd === 1));
+                const xs = side.flatMap((seg) => [seg.x0, seg.x1]);
+                if (depth < 0) expect(Math.min(...xs)).toBeLessThan(100 + depth + 3.5);
+                // Rounding a sharp tip takes off more than the radius.
+                else expect(r.bounds.right).toBeGreaterThan(100 + depth / 2);
+            }
+        }
+    });
+
+    test('cusp tip radius shrinks to fit its arcs', () => {
+        // A shallow cusp is nearly flat at the tip and takes large radii; this one does not fit.
+        const feature = { kind: 'cusp' as const, depth: -6, span: 1000, tipRadius: 5000 };
+        const r = resolve(shape(220, 220, { radius: 66 }, [feature, feature, feature, feature]));
+        expectWellFormed(r.outline);
+        expectSmoothAroundArcs(r.outline);
+        expect(r.clamps.some((c) => c.kind === 'vertex-radius' && c.factor > 0 && c.factor < 1)).toBe(true);
+    });
+
+    test('cusp at its deepest still rounds the tip', () => {
+        // At depth = half the span both arcs are quarter circles and the tip is the midpoint of
+        // their centers; the fillet side used to be taken from there and the rounding dropped.
+        for (const depth of [39.6, 45, -39.6, -45]) {
+            const feature = { kind: 'cusp' as const, depth, span: 79.2, tipRadius: 5 };
+            const r = resolve(shape(240, 150, { radius: 24 }, [feature, {}, {}, {}]));
+            expectWellFormed(r.outline);
+            expectSmoothAroundArcs(r.outline);
+            expect(r.clamps.some((c) => c.kind === 'vertex-radius')).toBe(false);
+        }
+    });
+
+    test('cusp of depth 0 is a flat side', () => {
+        const r = resolve(shape(100, 40, {}, [{ kind: 'cusp', depth: 0, span: 30 }]));
+        expect(r.outline.segments.length).toBe(4);
+    });
+
     test('depth 0 adds no vertices', () => {
         const r = resolve(shape(100, 40, {}, [{ kind: 'rect', depth: 0, span: 30 }]));
         expect(r.outline.segments.length).toBe(4);
