@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Shape debug</title>
+<style>
+  body { margin: 0; padding: 16px; background: #fafafa; font: 12px/1.3 ui-monospace, monospace; color: #222; }
+  .grid { display: grid; grid-template-columns: repeat(4, 220px); gap: 16px; }
+  .cell { background: #fff; border: 1px solid #ddd; padding: 8px; }
+  .stage { position: relative; width: 200px; height: 140px; }
+  .stage canvas, .stage svg { position: absolute; left: 0; top: 0; width: 200px; height: 140px; overflow: visible; }
+  .name { font-weight: bold; margin-bottom: 4px; }
+  .clamps { color: #b00; min-height: 1.3em; }
+</style>
+</head>
+<body>
+<div class="grid" id="grid"></div>
+<script type="module" src="./debug.ts"></script>
+</body>
+</html>
