@@ -253,12 +253,24 @@ function roundNodes(nodes: Node[], clamps: Clamp[]): Contour {
     const prev = (k: number) => nodes[(k + count - 1) % count];
     const next = (k: number) => nodes[(k + 1) % count];
 
-    // Line-line fillets: desired tangent length per node, then B5 scaling per segment.
+    // Desired tangent length per node, then B5 scaling per straight segment. A line-line fillet
+    // takes its length on both segments, a shoulder (line-arc fillet) only on its straight
+    // segment. Both ends of a segment shrink together, so a corner next to a feature shoulder
+    // never overlaps it.
     const angle = new Array<number>(count).fill(0);
     const tangent = new Array<number>(count).fill(0);
+    const shoulders: (Shoulder | null)[] = new Array(count).fill(null);
     for (let k = 0; k < count; k++) {
         const node = nodes[k];
-        if (node.radius <= 0 || node.arc || prev(k).arc) continue;
+        if (node.radius <= 0) continue;
+        if (node.arc || prev(k).arc) {
+            const shoulder = shoulderAt(nodes, k);
+            if (shoulder) {
+                shoulders[k] = shoulder;
+                tangent[k] = shoulder.tangent(node.radius);
+            }
+            continue;
+        }
         const u = normalize(sub(prev(k).p, node.p));
         const v = normalize(sub(next(k).p, node.p));
         const theta = Math.acos(Math.max(-1, Math.min(1, dot(u, v))));
@@ -270,7 +282,10 @@ function roundNodes(nodes: Node[], clamps: Clamp[]): Contour {
     for (let k = 0; k < count; k++) {
         if (nodes[k].arc) continue;
         const k1 = (k + 1) % count;
-        const sum = tangent[k] + tangent[k1];
+        // A shoulder whose straight segment is the other one takes nothing here.
+        const start = shoulders[k] && shoulders[k]!.arcOut ? 0 : tangent[k];
+        const end = shoulders[k1] && !shoulders[k1]!.arcOut ? 0 : tangent[k1];
+        const sum = start + end;
         const len = distance(nodes[k].p, nodes[k1].p);
         if (sum > len * (1 + 1e-9) && sum > 0) {
             const f = len / sum;
@@ -282,7 +297,10 @@ function roundNodes(nodes: Node[], clamps: Clamp[]): Contour {
     const fillets: Fillet[] = nodes.map((node, k) => {
         const plain = { inPoint: node.p, outPoint: node.p };
         if (node.radius <= 0) return plain;
-        if (node.arc || prev(k).arc) return lineArcFillet(nodes, k, clamps) || plain;
+        if (node.arc || prev(k).arc) {
+            const shoulder = shoulders[k];
+            return (shoulder && lineArcFillet(shoulder, node.radius, tangent[k] * factor[k], k, clamps)) || plain;
+        }
         if (tangent[k] === 0) return plain;
         if (factor[k] < 1) clamps.push({ kind: 'vertex-radius', index: k, factor: factor[k] });
         const r = node.radius * factor[k];
@@ -332,8 +350,23 @@ function roundNodes(nodes: Node[], clamps: Clamp[]): Contour {
     return { segments };
 }
 
-// Fillet between a straight base segment and a circular feature arc at a shoulder.
-function lineArcFillet(nodes: Node[], k: number, clamps: Clamp[]): Fillet | null {
+// A shoulder: the node where a straight base segment meets a circular feature arc.
+interface Shoulder {
+    // True when the arc leaves this node (the straight segment comes in).
+    arcOut: boolean;
+    // Point on the straight segment at distance `os` from the node (negative: away from the arc)
+    // and the fillet center, for a fillet radius; null when no fillet of that radius touches
+    // both.
+    solve(rho: number): { os: number; center: Point } | null;
+    // Length the fillet takes on the straight segment, at most the whole segment.
+    tangent(rho: number): number;
+    node: Point;
+    // Unit direction along the straight segment, toward the node.
+    dir: Point;
+    arc: { center: Point; r: number };
+}
+
+function shoulderAt(nodes: Node[], k: number): Shoulder | null {
     const count = nodes.length;
     const node = nodes[k];
     const before = nodes[(k + count - 1) % count];
@@ -361,17 +394,27 @@ function lineArcFillet(nodes: Node[], k: number, clamps: Clamp[]): Fillet | null
         const os = cs - Math.sqrt(radicand);
         return { os, center: add(add(S, scale(e, os)), scale(n, rho)) };
     };
+    const tangent = (rho: number) => {
+        const solved = solve(rho);
+        return solved ? Math.min(available, Math.max(0, -solved.os)) : available;
+    };
+    return { arcOut, solve, tangent, node: S, dir: e, arc };
+}
 
-    let rho = node.radius;
+// Fillet between a straight base segment and a circular feature arc at a shoulder, taking at
+// most `room` of the straight segment.
+function lineArcFillet(shoulder: Shoulder, radius: number, room: number, k: number, clamps: Clamp[]): Fillet | null {
+    const { solve, arc } = shoulder;
+    let rho = radius;
     let solved = solve(rho);
-    if (!solved || -solved.os > available) {
-        // Shrink until the tangent point fits on the straight segment.
+    if (!solved || -solved.os > room) {
+        // Shrink until the tangent point fits.
         let lo = 0;
         let hi = rho;
         for (let i = 0; i < 40; i++) {
             const mid = (lo + hi) / 2;
             const s = solve(mid);
-            if (s && -s.os <= available) lo = mid;
+            if (s && -s.os <= room) lo = mid;
             else hi = mid;
         }
         clamps.push({ kind: 'vertex-radius', index: k, factor: rho > 0 ? lo / rho : 0 });
@@ -379,9 +422,10 @@ function lineArcFillet(nodes: Node[], k: number, clamps: Clamp[]): Fillet | null
         solved = solve(rho);
         if (!solved || rho < EPSILON) return null;
     }
+    const { node: S, dir, arcOut } = shoulder;
     const center = solved.center;
-    const onLine = add(S, scale(e, solved.os));
-    const onArc = add(arc.center, scale(normalize(sub(center, arc.center)), R));
+    const onLine = add(S, scale(dir, solved.os));
+    const onArc = add(arc.center, scale(normalize(sub(center, arc.center)), arc.r));
     const through = add(center, scale(normalize(sub(S, center)), rho));
     const filletArc = { center, r: rho, through };
     return arcOut

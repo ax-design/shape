@@ -226,6 +226,22 @@ describe('edge features', () => {
         }
     });
 
+    test('a corner and a feature shoulder share the straight part of the edge', () => {
+        // The 4-sided cookie and the 4-leaf clover: the corner tangent and the shoulder used to
+        // overlap, and the contour ran back along the edge between them.
+        const cases: [number, number, number, number][] = [
+            [74.8, -15.4, 96.8, 13.2],
+            [66, -35.2, 88, 22],
+        ];
+        for (const [radius, depth, span, shoulderRadius] of cases) {
+            const feature = { kind: 'arc' as const, depth, span, shoulderRadius };
+            const r = resolve(shape(220, 220, { radius }, [feature, feature, feature, feature]));
+            expectWellFormed(r.outline);
+            expectSmoothAroundArcs(r.outline);
+            expect(r.clamps.some((c) => c.kind === 'vertex-radius' && c.factor < 1)).toBe(true);
+        }
+    });
+
     test('depth 0 adds no vertices', () => {
         const r = resolve(shape(100, 40, {}, [{ kind: 'rect', depth: 0, span: 30 }]));
         expect(r.outline.segments.length).toBe(4);
