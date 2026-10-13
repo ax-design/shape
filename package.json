@@ -6,7 +6,10 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -15,5 +18,13 @@
   "devDependencies": {
     "typescript": "^5.6.0",
     "@types/bun": "latest"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
   }
 }
