@@ -66,6 +66,14 @@ resolve({ width: 160, height: 160, corners: [soft, soft, soft, soft], edges: [fl
 
 Values that do not fit are scaled down, the same way CSS does with `border-radius`. A corner and a side feature next to it share the straight part of the side and shrink together. `shape.clamps` tells you what was scaled and by how much. A side feature narrower than half a pixel is left out, so animating a span down to zero ends on a flat side.
 
+A feature as wide as its side starts at the corners. Round those corners with the feature's `shoulderRadius` and give the corners a radius of 0: the shoulder then joins the next side in one arc, as in a hexagon (a triangle of full span on the top and the bottom side). With a corner radius as well, the outline turns twice, once around the corner and once more at the shoulder, and leaves a small ear at each corner.
+
+```javascript
+const sharp = { radius: 0, shape: 'round', shiftX: 0, shiftY: 0 };
+const roof = { ...flat, kind: 'triangle', depth: 30, span: 104, tipRadius: 6, shoulderRadius: 6 };
+resolve({ width: 104, height: 60, corners: [sharp, sharp, sharp, sharp], edges: [roof, flat, roof, flat] });
+```
+
 ### Borders
 
 `borderInner` gives you the inner edge of a border ring. Fill the outline together with the inner edge using the even-odd rule:
