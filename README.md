@@ -1,7 +1,12 @@
-<h1 align="center">Shape</h1>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ax-design/shape/master/docs/logo-r.png">
+    <img src="https://raw.githubusercontent.com/ax-design/shape/master/docs/logo.png" alt="Ax Pressure">
+  </picture>
+</h1>
 
 <p align="center">
-  The shapes of Axiom Design System, drawn the same way on SVG and Canvas.
+  The shapes system of the Axiom Design System.
 </p>
 
 <p align="center">
