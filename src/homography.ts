@@ -19,6 +19,12 @@ export interface TiltParams {
     // the left edge of their group).
     originX?: number;
     originY?: number;
+    // A 2D scale about the origin and a move in px, both outside the perspective: the turned
+    // element is enlarged and moved as a picture, so an element turned edge-on stays a line
+    // wherever it goes. Defaults 1, 0 and 0.
+    scale?: number;
+    x?: number;
+    y?: number;
 }
 
 // A 4x4 matrix in row-major storage, for column vectors, as CSS composes a transform list.
@@ -42,8 +48,9 @@ function translate3d(x: number, y: number, z: number): Mat4 {
     return [1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, z, 0, 0, 0, 1];
 }
 
-// The matrix of `perspective(p) rotateX(ax) rotateY(ay) translateZ(z)` around the origin (the
-// center of a width x height box unless originX / originY say otherwise), in 3D. Two of them
+// The matrix of `translate(x, y) scale(s) perspective(p) rotateX(ax) rotateY(ay) translateZ(z)`
+// around the origin (the center of a width x height box unless originX / originY say otherwise),
+// in 3D. Two of them
 // compose with multiplyMatrix exactly as two transforms in one CSS transform list do, which
 // projecting each one alone would not.
 export function tiltMatrix(t: TiltParams): Mat4 {
@@ -55,8 +62,10 @@ export function tiltMatrix(t: TiltParams): Mat4 {
     const ry = [Math.cos(ay), 0, Math.sin(ay), 0, 0, 1, 0, 0, -Math.sin(ay), 0, Math.cos(ay), 0, 0, 0, 0, 1];
     const ox = t.originX === undefined ? t.width / 2 : t.originX;
     const oy = t.originY === undefined ? t.height / 2 : t.originY;
-    let m = translate3d(ox, oy, 0);
-    for (const step of [perspective, rx, ry, translate3d(0, 0, t.translateZ), translate3d(-ox, -oy, 0)]) m = multiplyMatrix(m, step);
+    const s = t.scale === undefined ? 1 : t.scale;
+    const scale = [s, 0, 0, 0, 0, s, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    let m = translate3d(ox + (t.x || 0), oy + (t.y || 0), 0);
+    for (const step of [scale, perspective, rx, ry, translate3d(0, 0, t.translateZ), translate3d(-ox, -oy, 0)]) m = multiplyMatrix(m, step);
     return m;
 }
 

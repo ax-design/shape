@@ -50,3 +50,20 @@ test('projectContour follows the outline through the transform', () => {
     const right = Math.max(...turned.map((p) => p.x));
     expect(right - left).toBeLessThan(100);
 });
+
+test('scale and x / y enlarge and move the turned element outside the perspective', () => {
+    const base = { width: 100, height: 50, perspective: 400, rotateX: 0, translateZ: 0 };
+    // Edge-on: the element is a vertical line through its center, also enlarged and moved.
+    const h = tiltHomography({ ...base, rotateY: 90, scale: 3, x: 200, y: -20 });
+    // The middle column stays at depth 0; the corners move in depth, but stay on the line.
+    const top = apply(h, { x: 50, y: 0 });
+    const bottom = apply(h, { x: 50, y: 50 });
+    expect(close(apply(h, { x: 0, y: 0 }).x, 250) && close(apply(h, { x: 100, y: 50 }).x, 250)).toBe(true);
+    expect(close(top.x, 250) && close(bottom.x, 250)).toBe(true);
+    expect(close(bottom.y - top.y, 150)).toBe(true);
+    expect(close((top.y + bottom.y) / 2, 5)).toBe(true);
+    // Flat, they are a plain scale about the center and a move.
+    const flat = tiltHomography({ ...base, rotateY: 0, scale: 2, x: 10, y: 0 });
+    const corner = apply(flat, { x: 0, y: 0 });
+    expect(close(corner.x, -40) && close(corner.y, -25)).toBe(true);
+});
