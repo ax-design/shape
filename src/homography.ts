@@ -14,13 +14,20 @@ export interface TiltParams {
     rotateX: number;
     rotateY: number;
     translateZ: number;
+    // The point the rotation turns around, in local px. Default: the center of the box, as the
+    // default transform-origin of CSS. It may lie outside the box (a row of tiles turning around
+    // the left edge of their group).
+    originX?: number;
+    originY?: number;
 }
 
-type Mat4 = number[];
+// A 4x4 matrix in row-major storage, for column vectors, as CSS composes a transform list.
+export type Matrix4 = number[];
+type Mat4 = Matrix4;
 
 // Column-vector 4x4 matrices in row-major storage, multiplied left to right like a CSS
-// transform list.
-function mul4(a: Mat4, b: Mat4): Mat4 {
+// transform list: multiplyMatrix(a, b) is `transform: a b`.
+export function multiplyMatrix(a: Mat4, b: Mat4): Mat4 {
     const out = new Array<number>(16).fill(0);
     for (let r = 0; r < 4; r++)
         for (let c = 0; c < 4; c++) {
@@ -35,21 +42,33 @@ function translate3d(x: number, y: number, z: number): Mat4 {
     return [1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, z, 0, 0, 0, 1];
 }
 
-// The matrix of `perspective(p) rotateX(ax) rotateY(ay) translateZ(z)` around the center of a
-// width x height box (the default transform-origin), restricted to the z = 0 plane.
-export function tiltHomography(t: TiltParams): Homography {
+// The matrix of `perspective(p) rotateX(ax) rotateY(ay) translateZ(z)` around the origin (the
+// center of a width x height box unless originX / originY say otherwise), in 3D. Two of them
+// compose with multiplyMatrix exactly as two transforms in one CSS transform list do, which
+// projecting each one alone would not.
+export function tiltMatrix(t: TiltParams): Mat4 {
     const ax = (t.rotateX * Math.PI) / 180;
     const ay = (t.rotateY * Math.PI) / 180;
     const p = t.perspective > 0 && isFinite(t.perspective) ? -1 / t.perspective : 0;
     const perspective = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, p, 1];
     const rx = [1, 0, 0, 0, 0, Math.cos(ax), -Math.sin(ax), 0, 0, Math.sin(ax), Math.cos(ax), 0, 0, 0, 0, 1];
     const ry = [Math.cos(ay), 0, Math.sin(ay), 0, 0, 1, 0, 0, -Math.sin(ay), 0, Math.cos(ay), 0, 0, 0, 0, 1];
-    const cx = t.width / 2;
-    const cy = t.height / 2;
-    let m = translate3d(cx, cy, 0);
-    for (const step of [perspective, rx, ry, translate3d(0, 0, t.translateZ), translate3d(-cx, -cy, 0)]) m = mul4(m, step);
+    const ox = t.originX === undefined ? t.width / 2 : t.originX;
+    const oy = t.originY === undefined ? t.height / 2 : t.originY;
+    let m = translate3d(ox, oy, 0);
+    for (const step of [perspective, rx, ry, translate3d(0, 0, t.translateZ), translate3d(-ox, -oy, 0)]) m = multiplyMatrix(m, step);
+    return m;
+}
+
+// A 3D matrix restricted to the z = 0 plane: what it does to a flat element.
+export function planeHomography(m: Mat4): Homography {
     // Keep columns x, y and w of rows x, y and w.
     return [m[0], m[1], m[3], m[4], m[5], m[7], m[12], m[13], m[15]];
+}
+
+// tiltMatrix restricted to the plane.
+export function tiltHomography(t: TiltParams): Homography {
+    return planeHomography(tiltMatrix(t));
 }
 
 export function apply(h: Homography, p: Point): Point {

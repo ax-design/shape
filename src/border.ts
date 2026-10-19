@@ -94,6 +94,17 @@ function sampleEdges(segments: Segment[], h: Homography, identity: boolean, thic
     return edges;
 }
 
+// The outline as seen through a tilt: a closed polyline in screen coordinates, its arcs sampled
+// within `tolerance` screen px. For layers that draw the projected shape themselves (Firefox,
+// where no 3D transform may sit above acrylic) rather than under a CSS transform.
+export function projectContour(outline: Contour, transform: Homography, tolerance = 0.1): Point[] {
+    const identity = isIdentity(transform);
+    const none: Quad<number> = [0, 0, 0, 0];
+    const points: Point[] = [];
+    for (const e of sampleEdges(outline.segments, transform, identity, none, tolerance)) points.push(e.a);
+    return points;
+}
+
 function intersect(p: Point, d: Point, q: Point, e: Point): Point | null {
     const denom = d.x * e.y - d.y * e.x;
     if (Math.abs(denom) < 1e-12) return null;

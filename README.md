@@ -104,6 +104,17 @@ const transform = tiltHomography({ width: 160, height: 48, perspective: 25, rota
 const { inner } = borderInner(shape.outline, { widths: [2, 2, 2, 2], transform });
 ```
 
+The tilt turns around the center of the box unless `originX` / `originY` say otherwise; the origin may lie outside the box, as for a row of tiles turning around the left edge of their group. `tiltMatrix()` gives the same tilt as a 3D matrix, and `multiplyMatrix(a, b)` composes two of them exactly as `transform: a b` does in CSS; `planeHomography()` turns the result back into the transform of a flat element.
+
+To draw the tilted shape yourself rather than under a CSS transform (Firefox can't have a 3D transform above a backdrop-filter), `projectContour(outline, transform)` gives the outline as a polyline in screen coordinates, its arcs sampled within 0.1 px:
+
+```javascript
+import { projectContour, tiltHomography } from '@ax-design/shape';
+
+const transform = tiltHomography({ width: 160, height: 48, perspective: 1000, rotateX: 0, rotateY: 60, translateZ: 0, originX: -200, originY: 24 });
+const points = projectContour(shape.outline, transform);
+```
+
 Shape has no DOM dependency, so you can also use it on the server.
 
 ## Changes in 0.2

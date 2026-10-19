@@ -19,7 +19,7 @@ export type {
     ShapeSpec,
     Vertex,
 } from './types.js';
-export { borderInner, innerToSvgPath, traceInner } from './border.js';
+export { borderInner, innerToSvgPath, projectContour, traceInner } from './border.js';
 export type { BorderOptions, BorderResult, RingSink } from './border.js';
-export { IDENTITY, apply, invert, scaleAt, tiltHomography } from './homography.js';
-export type { Homography, TiltParams } from './homography.js';
+export { IDENTITY, apply, invert, multiplyMatrix, planeHomography, scaleAt, tiltHomography, tiltMatrix } from './homography.js';
+export type { Homography, Matrix4, TiltParams } from './homography.js';
